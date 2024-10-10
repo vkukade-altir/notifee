@@ -57,6 +57,7 @@ import app.notifee.core.model.NotificationAndroidModel;
 import app.notifee.core.model.NotificationAndroidPressActionModel;
 import app.notifee.core.model.NotificationAndroidStyleModel;
 import app.notifee.core.model.NotificationModel;
+import app.notifee.core.model.NotificationAndroidCustomLayoutModel;
 import app.notifee.core.model.TimestampTriggerModel;
 import app.notifee.core.utility.ExtendedListenableFuture;
 import app.notifee.core.utility.IntentUtils;
@@ -78,6 +79,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import android.widget.RemoteViews;
 
 class NotificationManager {
   private static final String TAG = "NotificationManager";
@@ -450,6 +452,41 @@ class NotificationManager {
 
                   return builder;
                 });
+    
+    /*
+     * A task continuation that adds custom layout, if specified.
+     */
+    AsyncFunction<NotificationCompat.Builder, NotificationCompat.Builder> customLayoutContinuation =
+        taskResult ->
+            LISTENING_CACHED_THREAD_POOL.submit(
+                () -> {
+                  NotificationCompat.Builder builder = taskResult;
+                  if (androidModel.hasCustomLayout()) {
+                    final NotificationAndroidCustomLayoutModel customLayoutModel = androidModel.getAndroidCustomLayout();
+                    String customLayoutTitle = customLayoutModel.getCustomLayoutTitle();
+                    String customLayoutDesc = customLayoutModel.getCustomLayoutDesc();
+
+                    Context context = ContextHolder.getApplicationContext();
+                    String packageName = context.getPackageName();
+
+                    // Get the layouts to use in the custom notification
+                    RemoteViews notificationLayout = new RemoteViews(packageName, R.layout.custom_collapsed_notification);
+                    RemoteViews notificationLayoutExpanded = new RemoteViews(packageName, R.layout.custom_expanded_notification);
+
+                    // Update notification layout
+                    notificationLayout.setTextViewText(R.id.notification_title, customLayoutTitle);
+
+                    // Update notification layout expanded
+                    notificationLayoutExpanded.setTextViewText(R.id.notification_title, customLayoutTitle);
+                    notificationLayoutExpanded.setTextViewText(R.id.notification_body, customLayoutDesc);
+
+                    builder.setStyle(new NotificationCompat.DecoratedCustomViewStyle());
+                    builder.setCustomContentView(notificationLayout);
+                    builder.setCustomBigContentView(notificationLayoutExpanded);
+                  }
+
+                  return builder;
+                });
 
     return new ExtendedListenableFuture<>(LISTENING_CACHED_THREAD_POOL.submit(builderCallable))
         // get a large image bitmap if largeIcon is set
@@ -459,7 +496,9 @@ class NotificationManager {
         // build notification style, tasks based to allow image fetching
         .continueWith(styleContinuation, LISTENING_CACHED_THREAD_POOL)
         // set full screen action, if fullScreenAction is set
-        .continueWith(fullScreenActionContinuation, LISTENING_CACHED_THREAD_POOL);
+        .continueWith(fullScreenActionContinuation, LISTENING_CACHED_THREAD_POOL)
+        // set full screen action, if fullScreenAction is set
+        .continueWith(customLayoutContinuation, LISTENING_CACHED_THREAD_POOL);
   }
 
   static ListenableFuture<Void> cancelAllNotifications(@NonNull int notificationType) {

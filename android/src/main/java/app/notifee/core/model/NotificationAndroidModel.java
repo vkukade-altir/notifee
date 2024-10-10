@@ -654,6 +654,24 @@ public class NotificationAndroidModel {
     return -1;
   }
 
+  /**
+   * Returns true if the notification has a customLayout field
+   *
+   * @return Boolean
+   */
+  public Boolean hasCustomLayout() {
+    return mNotificationAndroidBundle.containsKey("customLayout");
+  }
+
+  /**
+   * Returns customLayout class instance filled with customLayout bundle if the android has a customLayout field
+   *
+   * @return Boolean
+   */
+  public @NonNull NotificationAndroidCustomLayoutModel getAndroidCustomLayout() {
+    return NotificationAndroidCustomLayoutModel.fromBundle(mNotificationAndroidBundle.getBundle("customLayout"));
+  }
+
   public static class AndroidProgress {
     int max;
     int current;
